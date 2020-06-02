@@ -8,21 +8,57 @@ const $messages = document.querySelector('#messages')
 
 const messageTemplate = document.querySelector('#message-template').innerHTML
 const locationTemplate = document.querySelector('#location-template').innerHTML
+const sidebarTemplate = document.querySelector('#sidebar-template').innerHTML
 
-socket.on('message', ({ text, createdAt }) => {
+const { username, room } = Qs.parse(location.search, { ignoreQueryPrefix: true })
+
+const autoscroll = () => {
+    const $newMessage = $messages.lastElementChild
+
+    const newMessageStyles = getComputedStyle($newMessage)
+    const newMessageMargin = parseInt(newMessageStyles.marginBottom)
+    const newMessageHeight = $newMessage.offsetHeight + newMessageMargin
+
+    const visibleHeight = $messages.offsetHeight
+
+    //height of the message container
+    const containerHeight = $messages.scrollHeight
+
+    //height of the top of the scrollbar from the top + visible height
+    const scrollOffset = $messages.scrollTop + visibleHeight
+
+    if (containerHeight - newMessageHeight <= scrollOffset) {
+        $messages.scrollTop = $messages.scrollHeight
+    }
+}
+
+socket.on('message', ({ username, text, createdAt }) => {
     const html = Mustache.render(messageTemplate, {
+        username,
         message: text,
         createdAt: moment(createdAt).format('h:mm a')
     })
     $messages.insertAdjacentHTML('beforeend', html)
+    autoscroll()
 })
 
-socket.on('location-message', (message) => {
+socket.on('location-message', (username, { url, createdAt }) => {
     const html = Mustache.render(locationTemplate, {
-        message
+        username,
+        url,
+        createdAt: moment(createdAt).format('h:mm a')
     })
     $messages.insertAdjacentHTML('beforeend', html)
+    autoscroll()
 })  
+
+socket.on('roomData', ({ users, room }) => {
+    const html = Mustache.render(sidebarTemplate, {
+        room,
+        users
+    })
+    document.querySelector('#sidebar').innerHTML = html
+})
 
 document.querySelector('#message-form').addEventListener('submit', (e) => {
     e.preventDefault()
@@ -66,3 +102,9 @@ document.querySelector('#send-location').addEventListener('click', () => {
     })
 })
 
+socket.emit('join', { username, room }, (error) => {
+    if (error) {
+        alert(error)
+        location.href = '/'
+    }
+})
